@@ -7,9 +7,50 @@
 #include "common/http/message_impl.h"
 #include "common/http/utility.h"
 
+#include "google/protobuf/io/zero_copy_stream.h"
 #include "google/protobuf/message.h"
 
 namespace Grpc {
+
+class BufferInputStream : public google::protobuf::io::ZeroCopyInputStream {
+public:
+  BufferInputStream(const Buffer::Instance& buffer) {
+    num_iovecs_ = buffer.getRawSlices(nullptr, 0);
+    iovecs_.resize(num_iovecs_);
+    buffer.getRawSlices(&iovecs_[0], num_iovecs_);
+  }
+
+  // google::protobuf::io::ZeroCopyInputStream
+  bool Next(const void** data , int* size) override {
+    current_iovec_++;
+    ASSERT(current_iovec_ <= num_iovecs_);
+    *data = iovecs_[current_iovec_].mem_;
+    *size = iovecs_[current_iovec_].len_;
+    read_ += *size;
+    return true;
+  }
+
+  void BackUp(int count) override {
+    ASSERT(current_iovec_ >= 0);
+    ASSERT(iovecs_[current_iovec_].len_ >= static_cast<uint64_t>(count));
+    ASSERT(read_ >= static_cast<uint64_t>(count));
+    iovecs_[current_iovec_].len_ -= count;
+    read_ -= count;
+  }
+
+  int64_t ByteCount() const override {
+    return read_;
+  }
+
+  bool Skip(int count) override {
+  }
+
+private:
+  std::vector<Buffer::RawSlice> iovecs_;
+  int64_t num_iovecs_;
+  int64_t current_iovec_{-1};
+  uint64_t read_{};
+};
 
 void RpcChannelImpl::cancel() {
   http_request_->cancel();
@@ -55,7 +96,9 @@ void RpcChannelImpl::onSuccess(Http::MessagePtr&& http_response) {
     }
 
     http_response->body()->drain(5);
-    if (!grpc_response_->ParseFromString(http_response->bodyAsString())) {
+    BufferInputStream input_stream(*http_response->body());
+    if (!grpc_response_->ParseFromBoundedZeroCopyStream(&input_stream,
+                                                        http_response->body()->length())) {
       throw Exception(Optional<uint64_t>(), "bad serialized body");
     }
 

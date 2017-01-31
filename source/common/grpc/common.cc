@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include "common/buffer/buffer_impl.h"
+#include "common/common/assert.h" // fixfix
 #include "common/common/empty_string.h"
 #include "common/common/enum_to_int.h"
 #include "common/common/utility.h"
@@ -8,7 +9,50 @@
 #include "common/http/message_impl.h"
 #include "common/http/utility.h"
 
+#include "google/protobuf/io/coded_stream.h"
+#include "google/protobuf/io/zero_copy_stream.h"
+
 namespace Grpc {
+
+class BufferOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
+public:
+  BufferOutputStream(Buffer::Instance& buffer, uint32_t size)
+      : buffer_(buffer), num_iovecs_(buffer.reserve(size, iovecs_, 2)) {}
+
+  ~BufferOutputStream() {
+    ASSERT(current_iovec_ >= 0);
+    buffer_.commit(iovecs_, current_iovec_ + 1);
+  }
+
+  // google::protobuf::io::ZeroCopyOutputStream
+  bool Next(void** data , int* size) override {
+    current_iovec_++;
+    ASSERT(current_iovec_ <= num_iovecs_);
+    *data = iovecs_[current_iovec_].mem_;
+    *size = iovecs_[current_iovec_].len_;
+    written_ += *size;
+    return true;
+  }
+
+  void BackUp(int count) override {
+    ASSERT(current_iovec_ >= 0);
+    ASSERT(iovecs_[current_iovec_].len_ >= static_cast<uint64_t>(count));
+    ASSERT(written_ >= static_cast<uint64_t>(count));
+    iovecs_[current_iovec_].len_ -= count;
+    written_ -= count;
+  }
+
+  int64_t ByteCount() const override {
+    return written_;
+  }
+
+private:
+  Buffer::Instance& buffer_;
+  Buffer::RawSlice iovecs_[2];
+  const int64_t num_iovecs_;
+  int64_t current_iovec_{-1};
+  uint64_t written_{};
+};
 
 const std::string Common::GRPC_CONTENT_TYPE{"application/grpc"};
 
@@ -26,20 +70,26 @@ Buffer::InstancePtr Common::serializeBody(const google::protobuf::Message& messa
   Buffer::InstancePtr body(new Buffer::OwnedImpl());
   uint8_t compressed = 0;
   body->add(&compressed, sizeof(compressed));
-  uint32_t size = htonl(message.ByteSize());
-  body->add(&size, sizeof(size));
-  body->add(message.SerializeAsString());
+  uint32_t size = message.ByteSize();
+  uint32_t network_size = htonl(size);
+  body->add(&network_size, sizeof(network_size));
 
+  BufferOutputStream buffer_stream(*body, size);
+  google::protobuf::io::CodedOutputStream codec_stream(&buffer_stream);
+  message.SerializeWithCachedSizes(&codec_stream);
   return body;
 }
 
 Http::MessagePtr Common::prepareHeaders(const std::string& upstream_cluster,
                                         const std::string& service_full_name,
                                         const std::string& method_name) {
-  // TODO PERF: Build path without fmt::format
   Http::MessagePtr message(new Http::RequestMessageImpl());
   message->headers().insertMethod().value(Http::Headers::get().MethodValues.Post);
-  message->headers().insertPath().value(fmt::format("/{}/{}", service_full_name, method_name));
+  message->headers().insertPath().value().append("/", 1);
+  message->headers().insertPath().value().append(service_full_name.c_str(),
+                                                 service_full_name.size());
+  message->headers().insertPath().value().append("/", 1);
+  message->headers().insertPath().value().append(method_name.c_str(), method_name.size());
   message->headers().insertHost().value(upstream_cluster);
   message->headers().insertContentType().value(Common::GRPC_CONTENT_TYPE);
 
