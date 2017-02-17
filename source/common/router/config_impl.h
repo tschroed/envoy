@@ -258,9 +258,7 @@ private:
       return parent_->virtualCluster(headers);
     }
 
-    const Json::ObjectPtr& opaqueConfig() const override {
-      return parent_->opaqueConfig();
-    }
+    const Json::ObjectPtr& opaqueConfig() const override { return parent_->opaqueConfig(); }
 
     const VirtualHost& virtualHost() const override { return parent_->virtualHost(); }
 
