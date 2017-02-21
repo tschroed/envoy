@@ -3,7 +3,6 @@
 #include "envoy/common/optional.h"
 #include "envoy/http/codec.h"
 #include "envoy/http/header_map.h"
-#include "envoy/json/json_object.h"
 #include "envoy/upstream/resource_manager.h"
 
 namespace Router {
@@ -223,9 +222,10 @@ public:
   virtual const VirtualHost& virtualHost() const PURE;
 
   /**
-   * @return const Json::ObjectPtr& the opaque configuration associated with the route
+   * @return const std::unordered_map<std::string, std::string> the opaque configuration associated
+   *         with the route
    */
-  virtual const Json::ObjectPtr& opaqueConfig() const PURE;
+  virtual const std::unordered_map<std::string, std::string>& opaqueConfig() const PURE;
 };
 
 /**

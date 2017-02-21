@@ -212,7 +212,9 @@ public:
   }
   std::chrono::milliseconds timeout() const override { return timeout_; }
   const VirtualHost& virtualHost() const override { return vhost_; }
-  const Json::ObjectPtr& opaqueConfig() const override { return opaque_config_; }
+  const std::unordered_map<std::string, std::string>& opaqueConfig() const override {
+    return opaque_config_;
+  }
 
   // Router::RedirectEntry
   std::string newPath(const Http::HeaderMap& headers) const override;
@@ -258,7 +260,9 @@ private:
       return parent_->virtualCluster(headers);
     }
 
-    const Json::ObjectPtr& opaqueConfig() const override { return parent_->opaqueConfig(); }
+    const std::unordered_map<std::string, std::string>& opaqueConfig() const override {
+      return parent_->opaqueConfig();
+    }
 
     const VirtualHost& virtualHost() const override { return parent_->virtualHost(); }
 
@@ -300,6 +304,8 @@ private:
 
   static Optional<RuntimeData> loadRuntimeData(const Json::Object& route);
 
+  static std::unordered_map<std::string, std::string> parseOpaqueConfig(const Json::Object& route);
+
   // Default timeout is 15s if nothing is specified in the route config.
   static const uint64_t DEFAULT_ROUTE_TIMEOUT_MS = 15000;
 
@@ -318,7 +324,7 @@ private:
   std::vector<ConfigUtility::HeaderData> config_headers_;
   std::vector<WeightedClusterEntryPtr> weighted_clusters_;
   std::unique_ptr<const HashPolicyImpl> hash_policy_;
-  const Json::ObjectPtr opaque_config_;
+  const std::unordered_map<std::string, std::string> opaque_config_;
 };
 
 /**
