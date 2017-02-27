@@ -341,7 +341,7 @@ by envoy and can be accessed within a user-defined filter.
 .. code-block:: json
 
   [
-    {"name": "value", ...}
+    {"...": "..." }
   ]
 
 name
