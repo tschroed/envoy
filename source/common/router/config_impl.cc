@@ -424,7 +424,7 @@ VirtualHostImpl::VirtualHostImpl(const Json::Object& virtual_host, Runtime::Load
     if (validate_clusters) {
       routes_.back()->validateClusters(cm);
       if (!routes_.back()->shadowPolicy().cluster().empty()) {
-        if (!cm.get(routes_.back()->shadowPolicy().cluster())) {
+        if (!cm.get(routes_.back()->shadowPolicy().cluster())) { // fixfix move
           throw EnvoyException(fmt::format("route: unknown shadow cluster '{}'",
                                            routes_.back()->shadowPolicy().cluster()));
         }

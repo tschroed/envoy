@@ -39,7 +39,7 @@ void ProxyFilter::onEvent(uint32_t events) {
 }
 
 void ProxyFilter::onResponse(PendingRequest& request, RespValuePtr&& value) {
-  // TODO: Currently the connection pool is a single connection so out of order can't happen.
+  // fixfix: Currently the connection pool is a single connection so out of order can't happen.
   ASSERT(!pending_requests_.empty());
   ASSERT(&request == &pending_requests_.front());
   UNREFERENCED_PARAMETER(request);
@@ -49,7 +49,7 @@ void ProxyFilter::onResponse(PendingRequest& request, RespValuePtr&& value) {
 }
 
 void ProxyFilter::onFailure(PendingRequest& request) {
-  // TODO: Currently the connection pool is a single connection so out of order can't happen.
+  // fixfix: Currently the connection pool is a single connection so out of order can't happen.
   ASSERT(!pending_requests_.empty());
   ASSERT(&request == &pending_requests_.front());
   UNREFERENCED_PARAMETER(request);
